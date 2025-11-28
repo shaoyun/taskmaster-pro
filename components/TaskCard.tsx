@@ -59,14 +59,21 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit, onToggleStatus
                 {format(new Date(task.dueDate), 'MM月dd日 HH:mm')}
               </span>
             )}
-            
+
             <span className="rounded-full bg-white/50 border border-slate-200 px-2 py-0.5 text-slate-600">
               {PRIORITY_LABELS[task.priority].split(' ')[0]}
             </span>
-            
+
             {isInProgress && !isDone && (
                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-700">
                 进行中
+              </span>
+            )}
+
+            {isDone && task.completedAt && (
+              <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-green-700">
+                <CheckCircle2 size={12} />
+                完成于 {format(new Date(task.completedAt), 'MM月dd日 HH:mm')}
               </span>
             )}
           </div>

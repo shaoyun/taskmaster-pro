@@ -1,5 +1,5 @@
 
-export type ViewMode = 'inbox' | 'today' | 'tomorrow' | 'week' | 'month' | 'matrix' | 'completed' | 'all';
+export type ViewMode = 'inbox' | 'today' | 'tomorrow' | 'week' | 'month' | 'matrix' | 'completed' | 'overdue' | 'all';
 
 export enum TaskStatus {
   TODO = 'TODO',
@@ -22,6 +22,7 @@ export interface Task {
   priority: Priority;
   dueDate: string | null; // ISO Date string
   createdAt: string;
+  completedAt: string | null; // ISO Date string - when task was marked as DONE
 }
 
 export const PRIORITY_LABELS: Record<Priority, string> = {

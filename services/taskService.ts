@@ -31,12 +31,13 @@ export const taskService = {
       priority: row.priority as Priority,
       dueDate: row.due_date,
       createdAt: row.created_at,
+      completedAt: row.completed_at,
     }));
   },
 
   async createTask(task: Task): Promise<void> {
     const supabase = ensureSupabase();
-    
+
     const { error } = await supabase.from('tasks').insert({
       id: task.id,
       title: task.title,
@@ -45,13 +46,24 @@ export const taskService = {
       priority: task.priority,
       due_date: task.dueDate,
       created_at: task.createdAt,
+      completed_at: task.status === TaskStatus.DONE ? new Date().toISOString() : null,
     });
     if (error) throw error;
   },
 
   async updateTask(task: Task): Promise<void> {
     const supabase = ensureSupabase();
-    
+
+    // Determine completed_at based on status
+    let completedAt: string | null;
+    if (task.status === TaskStatus.DONE) {
+      // If task is being marked as DONE, set completed_at to now (if not already set)
+      completedAt = task.completedAt || new Date().toISOString();
+    } else {
+      // If task status is changed from DONE to other status, clear completed_at
+      completedAt = null;
+    }
+
     const { error } = await supabase
       .from('tasks')
       .update({
@@ -60,6 +72,7 @@ export const taskService = {
         status: task.status,
         priority: task.priority,
         due_date: task.dueDate,
+        completed_at: completedAt,
       })
       .eq('id', task.id);
     if (error) throw error;

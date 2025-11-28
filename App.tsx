@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Layout, Calendar as CalendarIcon, Inbox, CheckSquare,
-  Grid2X2, Plus, Menu, Search, ChevronLeft, ChevronRight, Loader2, Settings, Sun,
-  List, Filter, ArrowUpDown, MoreHorizontal, Trash2, Edit2, RefreshCw
+  Grid2X2, Plus, Menu, Search, ChevronLeft, ChevronRight, Loader2, Sun,
+  List, Filter, ArrowUpDown, Trash2, Edit2, RefreshCw, AlertCircle
 } from 'lucide-react';
 import { Task, ViewMode, TaskStatus, Priority, PRIORITY_LABELS, STATUS_LABELS } from './types';
 import { taskService } from './services/taskService';
@@ -137,9 +137,13 @@ function App() {
 
         // Optimistic Update
         setTasks(prev => prev.map(t => t.id === taskData.id ? updatedTask : t));
+        setIsModalOpen(false);
         setEditingTask(null);
 
         await taskService.updateTask(updatedTask);
+
+        // Refresh from server to ensure data consistency (especially for completedAt)
+        await fetchTasks();
       } else {
         // Create new
         const newTask: Task = {
@@ -150,10 +154,12 @@ function App() {
           status: taskData.status || TaskStatus.TODO,
           priority: taskData.priority || Priority.Q2,
           dueDate: taskData.dueDate || null,
+          completedAt: null,
         };
 
         // Optimistic Update
         setTasks(prev => [newTask, ...prev]);
+        setIsModalOpen(false);
         setEditingTask(null);
 
         await taskService.createTask(newTask);
@@ -223,6 +229,8 @@ function App() {
 
     try {
       await taskService.updateTask(updatedTask);
+      // Refresh from server to get the correct completedAt timestamp
+      await fetchTasks();
     } catch (error: any) {
       console.error("Failed to toggle status:", error);
       if (error.message === 'SUPABASE_NOT_CONFIGURED') {
@@ -283,6 +291,12 @@ function App() {
         return filtered.filter(t => t.status !== TaskStatus.DONE);
       case 'completed':
         return filtered.filter(t => t.status === TaskStatus.DONE);
+      case 'overdue':
+        // Overdue: Tasks with due date in the past and not done
+        return filtered.filter(t =>
+          t.status !== TaskStatus.DONE &&
+          t.dueDate && isPast(parseISO(t.dueDate))
+        );
       case 'matrix':
         return filtered.filter(t => t.status !== TaskStatus.DONE);
       case 'all':
@@ -522,6 +536,7 @@ function App() {
                 <th className="px-6 py-3 font-medium">状态</th>
                 <th className="px-6 py-3 font-medium">优先级</th>
                 <th className="px-6 py-3 font-medium">截止时间</th>
+                <th className="px-6 py-3 font-medium">完成时间</th>
                 <th className="px-6 py-3 text-right font-medium">操作</th>
               </tr>
             </thead>
@@ -548,6 +563,13 @@ function App() {
                       </span>
                     ) : <span className="text-slate-300">-</span>}
                   </td>
+                  <td className="px-6 py-4 text-slate-500">
+                    {task.completedAt ? (
+                      <span className="text-green-700">
+                        {format(new Date(task.completedAt), 'MM-dd HH:mm')}
+                      </span>
+                    ) : <span className="text-slate-300">-</span>}
+                  </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => openEditTaskModal(task)} className="p-1 text-slate-400 hover:text-indigo-600">
@@ -566,7 +588,7 @@ function App() {
               ))}
               {displayedTasks.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400">没有符合条件的任务</td>
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">没有符合条件的任务</td>
                 </tr>
               )}
             </tbody>
@@ -699,6 +721,18 @@ function App() {
           <div className="my-2 h-px bg-slate-100" />
 
           <button
+            onClick={() => handleNavClick('overdue')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'overdue' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+          >
+            <AlertCircle size={18} />
+            延期任务
+            <span className="ml-auto rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-600">
+              {tasks.filter(t => t.status !== TaskStatus.DONE && t.dueDate && isPast(parseISO(t.dueDate))).length}
+            </span>
+          </button>
+
+          <button
             onClick={() => handleNavClick('all')}
             className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'all' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
@@ -749,6 +783,7 @@ function App() {
               {viewMode === 'all' && '所有任务'}
               {viewMode === 'matrix' && '四象限视图'}
               {viewMode === 'completed' && '已完成任务'}
+              {viewMode === 'overdue' && '延期任务'}
             </h2>
           </div>
 
@@ -787,7 +822,7 @@ function App() {
         <div className="flex-1 overflow-hidden p-4 md:p-8">
           {viewMode === 'month' ? renderMonthGrid() :
             viewMode === 'matrix' ? renderMatrixView() :
-              viewMode === 'all' ? renderAllTasksView() :
+              (viewMode === 'all' || viewMode === 'overdue') ? renderAllTasksView() :
                 renderListView()}
         </div>
       </main>
