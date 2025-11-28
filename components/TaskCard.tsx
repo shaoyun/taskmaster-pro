@@ -23,8 +23,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit, onToggleStatus
   };
 
   return (
-    <div 
-      className={`group relative flex flex-col gap-2 rounded-lg border border-slate-200 p-3 shadow-sm transition-all hover:shadow-md ${priorityColors[task.priority]} border-l-4`}
+    <div
+      className={`group relative flex flex-col gap-2 rounded-lg border border-slate-200 p-3 shadow-sm transition-all hover:shadow-md h-full ${priorityColors[task.priority]} border-l-4`}
     >
       <div className="flex items-start justify-between gap-3">
         <button 

@@ -1,5 +1,11 @@
 
-export type ViewMode = 'inbox' | 'today' | 'tomorrow' | 'week' | 'month' | 'matrix' | 'completed' | 'overdue' | 'all';
+export type ViewMode = 'inbox' | 'today' | 'tomorrow' | 'week' | 'month' | 'calendar' | 'matrix' | 'overdue' | 'all' | 'settings';
+
+export interface Holiday {
+  name: string;
+  date: string; // YYYY-MM-DD
+  isOffDay: boolean; // true for holiday, false for working day (makeup day)
+}
 
 export enum TaskStatus {
   TODO = 'TODO',

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Layout, Calendar as CalendarIcon, Inbox, CheckSquare,
+  Layout, Calendar as CalendarIcon, Inbox,
   Grid2X2, Plus, Menu, Search, ChevronLeft, ChevronRight, Loader2, Sun,
   List, Filter, ArrowUpDown, Trash2, Edit2, RefreshCw, AlertCircle
 } from 'lucide-react';
@@ -9,6 +9,10 @@ import { taskService } from './services/taskService';
 import { TaskModal } from './components/TaskModal';
 import { TaskCard } from './components/TaskCard';
 import { ConfirmModal } from './components/ConfirmModal';
+import { CalendarView } from './components/Calendar/CalendarView';
+import { SettingsView } from './components/SettingsView';
+import { holidayService } from './services/holidayService';
+import { Settings as SettingsIcon } from 'lucide-react';
 import {
   format, isSameDay, isSameWeek, isSameMonth,
   endOfWeek, addDays,
@@ -54,12 +58,15 @@ function App() {
 
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentMonth, setCurrentMonth] = useState(new Date());
   const [isLoading, setIsLoading] = useState(true);
 
   // Deleting State
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null); // For loading spinner
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null); // For confirmation modal
+
+  // Holiday State
+  const [holidays, setHolidays] = useState<any[]>([]);
+  const [showHolidays, setShowHolidays] = useState(true);
 
   // All Tasks View State
   const [allTasksPage, setAllTasksPage] = useState(1);
@@ -92,6 +99,19 @@ function App() {
       Notification.requestPermission();
     }
   }, [fetchTasks]);
+
+  useEffect(() => {
+    const loadHolidays = async () => {
+      const year = new Date().getFullYear();
+      // Fetch current year and next year to be safe
+      const [currentYear, nextYear] = await Promise.all([
+        holidayService.getHolidays(year),
+        holidayService.getHolidays(year + 1)
+      ]);
+      setHolidays([...currentYear, ...nextYear]);
+    };
+    loadHolidays();
+  }, []);
 
   // Check for due tasks every minute
   useEffect(() => {
@@ -302,6 +322,8 @@ function App() {
       case 'all':
         // Return all filtered by search, internal table handles other filters
         return filtered;
+      case 'settings':
+        return filtered;
       default:
         return filtered;
     }
@@ -311,7 +333,7 @@ function App() {
   // --- Render Helpers ---
 
   const renderMatrixView = () => (
-    <div className="grid h-full grid-cols-1 gap-4 overflow-y-auto pb-20 md:grid-cols-2 lg:h-[calc(100vh-8rem)]">
+    <div className="grid h-full grid-cols-1 gap-3 sm:gap-4 overflow-y-auto pb-4 md:pb-20 md:grid-cols-2 lg:h-[calc(100vh-8rem)]">
       {[Priority.Q1, Priority.Q2, Priority.Q3, Priority.Q4].map((p) => (
         <div key={p} className="flex flex-col gap-2 rounded-xl bg-slate-100 p-4 shadow-inner">
           <h3 className="mb-2 flex items-center gap-2 font-semibold text-slate-700">
@@ -335,129 +357,7 @@ function App() {
     </div>
   );
 
-  const renderMonthGrid = () => {
-    const monthStart = startOfMonth(currentMonth);
-    const monthEnd = endOfMonth(monthStart);
-    const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
-    const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
-    const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
 
-    const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-
-    return (
-      <div className="flex h-full flex-col overflow-hidden bg-white rounded-xl shadow-sm border border-slate-200 lg:h-[calc(100vh-9rem)]">
-        {/* Calendar Navigation */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-1 hover:bg-slate-100 rounded">
-              <ChevronLeft size={20} />
-            </button>
-            <h2 className="text-lg font-bold text-slate-800">
-              {format(currentMonth, 'yyyy年 MM月')}
-            </h2>
-            <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-1 hover:bg-slate-100 rounded">
-              <ChevronRight size={20} />
-            </button>
-          </div>
-          <button onClick={() => setCurrentMonth(new Date())} className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
-            回到今天
-          </button>
-        </div>
-
-        {/* Week Header */}
-        <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50">
-          {weekDays.map(day => (
-            <div key={day} className="py-2 text-center text-xs font-semibold text-slate-500">
-              {day}
-            </div>
-          ))}
-        </div>
-
-        {/* Calendar Grid */}
-        <div className="grid flex-1 grid-cols-7 grid-rows-5 md:grid-rows-auto overflow-y-auto">
-          {calendarDays.map((day, idx) => {
-            const dayTasks = tasks.filter(t =>
-              t.status !== TaskStatus.DONE &&
-              t.dueDate &&
-              isSameDay(parseISO(t.dueDate), day)
-            );
-            const isCurrentMonth = isSameMonth(day, monthStart);
-            const isDayToday = isToday(day);
-
-            return (
-              <div
-                key={day.toISOString()}
-                className={`min-h-[100px] border-b border-r border-slate-100 p-2 transition-colors hover:bg-slate-50 ${!isCurrentMonth ? 'bg-slate-50/50 text-slate-400' : ''}`}
-                onClick={() => {
-                  const targetDate = new Date(day);
-                  targetDate.setHours(9, 0, 0, 0);
-                  const isoDate = targetDate.toISOString();
-
-                  const newTask: any = { dueDate: isoDate };
-                  setEditingTask(newTask);
-                  setIsModalOpen(true);
-                }}
-              >
-                <div className={`mb-1 flex justify-center text-xs font-medium ${isDayToday ? 'mx-auto w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center' : ''}`}>
-                  {format(day, 'd')}
-                </div>
-                <div className="space-y-1">
-                  {dayTasks.map(t => (
-                    <div
-                      key={t.id}
-                      onClick={(e) => { e.stopPropagation(); openEditTaskModal(t); }}
-                      className={`truncate rounded px-1.5 py-0.5 text-[10px] cursor-pointer ${t.priority === Priority.Q1 ? 'bg-red-100 text-red-700' :
-                        t.priority === Priority.Q2 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'
-                        }`}
-                      title={t.title}
-                    >
-                      {t.title}
-                    </div>
-                  ))}
-                  {dayTasks.length > 3 && (
-                    <div className="text-[10px] text-slate-400 text-center">
-                      还有 {dayTasks.length - 3} 项...
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  const renderWeekView = () => {
-    const today = new Date();
-    const start = startOfWeek(today, { weekStartsOn: 1 });
-    const days = eachDayOfInterval({ start, end: addDays(start, 6) });
-
-    return (
-      <div className="flex h-full flex-col gap-6 overflow-y-auto pb-20 lg:h-[calc(100vh-8rem)]">
-        {days.map(day => {
-          const dayTasks = filteredTasks.filter(t => t.dueDate && isSameDay(parseISO(t.dueDate), day));
-          return (
-            <div key={day.toISOString()} className="flex flex-col gap-2">
-              <div className={`sticky top-0 z-10 bg-slate-50 py-2 text-sm font-semibold border-b border-slate-200/50 ${isToday(day) ? 'text-indigo-600' : 'text-slate-500'}`}>
-                {format(day, 'MM月dd日')} {WEEK_DAYS[day.getDay()]} {isToday(day) && '(今天)'}
-              </div>
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {dayTasks.map(t => (
-                  <TaskCard key={t.id} task={t} onEdit={openEditTaskModal} onToggleStatus={handleStatusToggle} />
-                ))}
-                {dayTasks.length === 0 && (
-                  <div className="p-4 text-xs text-slate-300 italic">
-                    无任务
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
 
   const renderAllTasksView = () => {
     // 1. Filter
@@ -621,26 +521,32 @@ function App() {
     );
   };
 
-  const renderListView = () => (
-    <div className="grid grid-cols-1 gap-3 overflow-y-auto pb-20 md:grid-cols-2 lg:h-[calc(100vh-8rem)] xl:grid-cols-3">
-      {filteredTasks.map(task => (
-        <TaskCard
-          key={task.id}
-          task={task}
-          onEdit={openEditTaskModal}
-          onToggleStatus={handleStatusToggle}
-        />
-      ))}
-      {filteredTasks.length === 0 && (
-        <div className="col-span-full py-12 text-center">
-          <div className="mb-3 flex justify-center text-slate-200">
-            <Inbox size={48} />
+  const renderListView = () => {
+    // Check if current view should use fixed height cards (inbox, today, tomorrow)
+    const useFixedHeight = viewMode === 'inbox' || viewMode === 'today' || viewMode === 'tomorrow';
+
+    return (
+      <div className={`grid grid-cols-1 gap-3 overflow-y-auto pb-4 md:pb-20 ${useFixedHeight ? 'auto-rows-fr' : ''} sm:grid-cols-2 lg:grid-cols-2 lg:h-[calc(100vh-8rem)] xl:grid-cols-3 2xl:grid-cols-4`}>
+        {filteredTasks.map(task => (
+          <div key={task.id} className={useFixedHeight ? 'h-full min-h-[120px] lg:max-h-[250px]' : ''}>
+            <TaskCard
+              task={task}
+              onEdit={openEditTaskModal}
+              onToggleStatus={handleStatusToggle}
+            />
           </div>
-          <p className="text-slate-500">没有找到任务</p>
-        </div>
-      )}
-    </div>
-  );
+        ))}
+        {filteredTasks.length === 0 && (
+          <div className="col-span-full py-12 text-center">
+            <div className="mb-3 flex justify-center text-slate-200">
+              <Inbox size={48} />
+            </div>
+            <p className="text-slate-500">没有找到任务</p>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="flex h-screen w-full bg-slate-50 text-slate-900">
@@ -701,21 +607,12 @@ function App() {
           </button>
 
           <button
-            onClick={() => handleNavClick('week')}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'week' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            onClick={() => handleNavClick('calendar')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'calendar' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
           >
             <CalendarIcon size={18} />
-            本周视图
-          </button>
-
-          <button
-            onClick={() => handleNavClick('month')}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'month' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-          >
-            <CalendarIcon size={18} />
-            月度日历
+            日历视图
           </button>
 
           <div className="my-2 h-px bg-slate-100" />
@@ -750,13 +647,15 @@ function App() {
             四象限视图
           </button>
 
+          <div className="my-2 h-px bg-slate-100" />
+
           <button
-            onClick={() => handleNavClick('completed')}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'completed' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            onClick={() => handleNavClick('settings')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'settings' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
           >
-            <CheckSquare size={18} />
-            已完成
+            <SettingsIcon size={18} />
+            设置
           </button>
         </nav>
 
@@ -778,12 +677,11 @@ function App() {
               {viewMode === 'inbox' && '收集箱'}
               {viewMode === 'today' && '今日任务'}
               {viewMode === 'tomorrow' && '明日任务'}
-              {viewMode === 'week' && '本周概览'}
-              {viewMode === 'month' && '月度日历'}
+              {viewMode === 'calendar' && '日历视图'}
               {viewMode === 'all' && '所有任务'}
               {viewMode === 'matrix' && '四象限视图'}
-              {viewMode === 'completed' && '已完成任务'}
               {viewMode === 'overdue' && '延期任务'}
+              {viewMode === 'settings' && '设置'}
             </h2>
           </div>
 
@@ -819,11 +717,23 @@ function App() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden p-4 md:p-8">
-          {viewMode === 'month' ? renderMonthGrid() :
-            viewMode === 'matrix' ? renderMatrixView() :
-              (viewMode === 'all' || viewMode === 'overdue') ? renderAllTasksView() :
-                renderListView()}
+        <div className="flex-1 overflow-hidden p-3 sm:p-4 md:p-6 lg:p-8">
+          {viewMode === 'calendar' ? (
+            <CalendarView
+              tasks={filteredTasks}
+              onTaskClick={openEditTaskModal}
+              onToggleStatus={handleStatusToggle}
+              holidays={holidays}
+              showHolidays={showHolidays}
+            />
+          ) : viewMode === 'settings' ? (
+            <SettingsView
+              showHolidays={showHolidays}
+              onToggleHolidays={setShowHolidays}
+            />
+          ) : viewMode === 'matrix' ? renderMatrixView() :
+            (viewMode === 'all' || viewMode === 'overdue') ? renderAllTasksView() :
+              renderListView()}
         </div>
       </main>
 
