@@ -1,5 +1,7 @@
 # TaskMaster Pro - 需求文档
 
+> 🏠 **返回主页**: [README.md](../README.md) | 📚 **部署指南**: [Deployment Guide](./deployment-guide.md)
+
 ## 日历周视图功能需求
 
 ### 1. 智能滚动定位
@@ -159,28 +161,42 @@
   - 大屏（lg）：2列
   - 超大屏（xl）：3列
   - 超超大屏（2xl）：4列
-- 内容区域内边距响应式调整：
-  - 移动端：`p-3`（0.75rem）
-  - 小屏：`sm:p-4`（1rem）
-  - 中屏：`md:p-6`（1.5rem）
-  - 大屏：`lg:p-8`（2rem）
-- 底部间距优化：移动端 `pb-4`，桌面端 `md:pb-20`
-- 四象限视图间距：移动端 `gap-3`，桌面端 `sm:gap-4`
+- 内容区域内边距响应式调整，底部间距优化
+- 四象限视图间距调整
 
 **用户价值：** 在各种屏幕尺寸上都能获得良好的使用体验，特别优化了触控操作。
+
+---
+
+### 13. [NEW] 任务完成时间记录
+**需求描述：** 准确记录任务被标记为"完成"的具体时间点。
+
+**详细文档：** [Completed At Feature Design](./completed-at-feature.md)
+
+**实现细节：**
+- 数据库新增 `completed_at` 字段
+- 任务状态变更为 DONE 时自动记录时间
+- 任务列表显示完成时间
+- 已完成任务支持按完成时间排序/展示
+
+**用户价值：** 提供更精确的任务追踪和绩效回顾能力。
 
 ---
 
 ## 技术实现说明
 
 ### 技术栈
-- React + TypeScript
+- React 19 + TypeScript
 - Tailwind CSS
 - date-fns (日期处理)
+- Supabase (Backend/DB)
+- Google Gemini AI (Task Breakdown)
+- Docker (Containerization)
 
 ### 关键组件
-- [WeekView.tsx](components/Calendar/WeekView.tsx) - 周视图主组件
-- [MonthView.tsx](components/Calendar/MonthView.tsx) - 月视图主组件
+- [WeekView.tsx](../components/Calendar/WeekView.tsx) - 周视图主组件
+- [MonthView.tsx](../components/Calendar/MonthView.tsx) - 月视图主组件
+- [geminiService.ts](../services/geminiService.ts) - AI 服务
 
 ### 核心常量
 ```typescript
@@ -207,20 +223,15 @@ const MAX_VISIBLE_TASKS = 3;       // 最大可见任务数
 | 1-2 | 黄色 | bg-yellow-500 | 正常 |
 | 3+ | 红色 | bg-red-500 | 繁忙 |
 
-#### 节假日标识
-| 类型 | 背景色 | 文字颜色 | 边框 | 后缀 |
-|------|--------|----------|------|------|
-| 放假日 | bg-red-50 | text-red-600 | 无 | 无 |
-| 补班日 | bg-amber-50 | text-amber-700 | border-amber-200 | (补班) |
-
-### 性能优化
-- 任务分组算法优化重叠检测
-- 使用 React Fragment 减少 DOM 节点
-- 合理使用 z-index 避免重绘
-
 ---
 
 ## 更新日志
+
+### v1.4.0 (2025-12-05) - 当前版本
+- ✅ **Docker 容器化**: 完整的 Dockerfile 和 docker-compose 配置，支持一键部署。
+- ✅ **AI 任务分解**: 集成 Gemini AI，自动拆解复杂任务。
+- ✅ **完成时间记录**: 新增 `completed_at` 字段，精确记录任务完成时刻。
+- ✅ **样式修复**: 修复 404 错误，分离 index.css。
 
 ### v1.3.0 (2025-11-28)
 - ✅ 移除"已完成"视图菜单项
