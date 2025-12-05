@@ -1,8 +1,9 @@
 # Build stage
-FROM node:18-alpine as build
+FROM node:22-alpine as build
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN npm config set registry https://registry.npmmirror.com/ && \
+    npm install
 COPY . .
 
 # Accept build arguments
