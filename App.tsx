@@ -70,7 +70,7 @@ function App() {
 
   // All Tasks View State
   const [allTasksPage, setAllTasksPage] = useState(1);
-  const [allTasksStatus, setAllTasksStatus] = useState<'ALL' | TaskStatus>('ALL');
+  const [allTasksStatus, setAllTasksStatus] = useState<'ALL' | 'UNFINISHED' | TaskStatus>('ALL');
   const [allTasksPriority, setAllTasksPriority] = useState<'ALL' | Priority>('ALL');
   const [allTasksSort, setAllTasksSort] = useState<'created' | 'dueDate'>('created');
   const ITEMS_PER_PAGE = 10;
@@ -362,7 +362,11 @@ function App() {
   const renderAllTasksView = () => {
     // 1. Filter
     let result = filteredTasks.filter(t => {
-      if (allTasksStatus !== 'ALL' && t.status !== allTasksStatus) return false;
+      if (allTasksStatus === 'UNFINISHED') {
+        if (t.status === TaskStatus.DONE) return false;
+      } else if (allTasksStatus !== 'ALL' && t.status !== allTasksStatus) {
+        return false;
+      }
       if (allTasksPriority !== 'ALL' && t.priority !== allTasksPriority) return false;
       return true;
     });
@@ -402,6 +406,7 @@ function App() {
               className="text-sm border border-slate-300 rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
             >
               <option value="ALL">所有状态</option>
+              <option value="UNFINISHED">未完成</option>
               {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
             <select
