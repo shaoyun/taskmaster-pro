@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Layout, Calendar as CalendarIcon, Inbox,
   Grid2X2, Plus, Menu, Search, ChevronLeft, ChevronRight, Loader2, Sun,
-  List, Filter, ArrowUpDown, Trash2, Edit2, RefreshCw, AlertCircle
+  List, Filter, ArrowUpDown, Trash2, Edit2, RefreshCw, AlertCircle, BarChart3
 } from 'lucide-react';
 import { Task, ViewMode, TaskStatus, Priority, PRIORITY_LABELS, STATUS_LABELS } from './types';
 import { taskService } from './services/taskService';
@@ -11,6 +11,7 @@ import { TaskCard } from './components/TaskCard';
 import { ConfirmModal } from './components/ConfirmModal';
 import { CalendarView } from './components/Calendar/CalendarView';
 import { SettingsView } from './components/SettingsView';
+import { DashboardView } from './components/DashboardView';
 import { holidayService } from './services/holidayService';
 import { Settings as SettingsIcon } from 'lucide-react';
 import {
@@ -576,6 +577,17 @@ function App() {
 
         <nav className="flex-1 space-y-1 p-4">
           <button
+            onClick={() => handleNavClick('dashboard')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'dashboard' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+          >
+            <BarChart3 size={18} />
+            数据概览
+          </button>
+
+          <div className="my-2 h-px bg-slate-100" />
+
+          <button
             onClick={() => handleNavClick('inbox')}
             className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'inbox' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
@@ -679,6 +691,7 @@ function App() {
               <Menu size={20} />
             </button>
             <h2 className="text-xl font-bold text-slate-800">
+              {viewMode === 'dashboard' && '数据概览'}
               {viewMode === 'inbox' && '收集箱'}
               {viewMode === 'today' && '今日任务'}
               {viewMode === 'tomorrow' && '明日任务'}
@@ -723,7 +736,9 @@ function App() {
 
         {/* Content Area */}
         <div className="flex-1 overflow-hidden p-3 sm:p-4 md:p-6 lg:p-8">
-          {viewMode === 'calendar' ? (
+          {viewMode === 'dashboard' ? (
+            <DashboardView tasks={tasks} />
+          ) : viewMode === 'calendar' ? (
             <CalendarView
               tasks={filteredTasks}
               onTaskClick={openEditTaskModal}

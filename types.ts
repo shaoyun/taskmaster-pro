@@ -1,5 +1,5 @@
 
-export type ViewMode = 'inbox' | 'today' | 'tomorrow' | 'week' | 'month' | 'calendar' | 'matrix' | 'overdue' | 'all' | 'settings';
+export type ViewMode = 'inbox' | 'today' | 'tomorrow' | 'week' | 'month' | 'calendar' | 'matrix' | 'overdue' | 'all' | 'dashboard' | 'settings';
 
 export interface Holiday {
   name: string;
