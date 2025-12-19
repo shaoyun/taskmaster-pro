@@ -1,5 +1,5 @@
 
-export type ViewMode = 'inbox' | 'today' | 'tomorrow' | 'week' | 'month' | 'calendar' | 'matrix' | 'overdue' | 'all' | 'dashboard' | 'settings';
+export type ViewMode = 'inbox' | 'today' | 'tomorrow' | 'week' | 'month' | 'calendar' | 'overdue' | 'all' | 'sprint' | 'dashboard' | 'settings' | 'task-list';
 
 export interface Holiday {
   name: string;
@@ -20,16 +20,7 @@ export enum Priority {
   Q4 = 'Q4', // Not Urgent & Not Important
 }
 
-export interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: TaskStatus;
-  priority: Priority;
-  dueDate: string | null; // ISO Date string
-  createdAt: string;
-  completedAt: string | null; // ISO Date string - when task was marked as DONE
-}
+
 
 export const PRIORITY_LABELS: Record<Priority, string> = {
   [Priority.Q1]: '重要且紧急 (马上做)',
@@ -43,3 +34,33 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   [TaskStatus.IN_PROGRESS]: '进行中',
   [TaskStatus.DONE]: '已完成',
 };
+
+export type SprintStatus = 'PLANNING' | 'ACTIVE' | 'COMPLETED';
+
+export interface Sprint {
+  id: string;
+  name: string;
+  startDate: string; // ISO
+  endDate: string; // ISO
+  status: SprintStatus;
+  createdAt: string;
+}
+
+export interface SprintConfig {
+  durationUnit: 'week' | '2weeks';
+  startDay: number; // 0 (Sun) - 6 (Sat), default 5 (Fri)
+  startTime: string; // HH:mm, default "00:00"
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  priority: Priority;
+  dueDate: string | null; // ISO Date string
+  createdAt: string;
+  completedAt: string | null; // ISO Date string
+  tags: string[];
+  sprintId: string | null;
+}

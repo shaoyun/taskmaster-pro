@@ -12,7 +12,7 @@ const ensureSupabase = () => {
 export const taskService = {
   async getTasks(): Promise<Task[]> {
     const supabase = ensureSupabase();
-    
+
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
@@ -32,6 +32,8 @@ export const taskService = {
       dueDate: row.due_date,
       createdAt: row.created_at,
       completedAt: row.completed_at,
+      tags: row.tags || [],
+      sprintId: row.sprint_id,
     }));
   },
 
@@ -47,6 +49,8 @@ export const taskService = {
       due_date: task.dueDate,
       created_at: task.createdAt,
       completed_at: task.status === TaskStatus.DONE ? new Date().toISOString() : null,
+      tags: task.tags,
+      sprint_id: task.sprintId,
     });
     if (error) throw error;
   },
@@ -73,6 +77,8 @@ export const taskService = {
         priority: task.priority,
         due_date: task.dueDate,
         completed_at: completedAt,
+        tags: task.tags,
+        sprint_id: task.sprintId,
       })
       .eq('id', task.id);
     if (error) throw error;

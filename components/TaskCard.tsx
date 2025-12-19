@@ -27,25 +27,24 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit, onToggleStatus
       className={`group relative flex flex-col gap-2 rounded-lg border border-slate-200 p-3 shadow-sm transition-all hover:shadow-md h-full ${priorityColors[task.priority]} border-l-4`}
     >
       <div className="flex items-start justify-between gap-3">
-        <button 
+        <button
           onClick={(e) => { e.stopPropagation(); onToggleStatus(task); }}
-          className={`mt-0.5 transition-colors ${
-            isDone ? 'text-green-600' : 
-            isInProgress ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
-          }`}
+          className={`mt-0.5 transition-colors ${isDone ? 'text-green-600' :
+              isInProgress ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+            }`}
           title={isDone ? "标记为未完成" : "标记为已完成"}
         >
           {isDone ? <CheckCircle2 size={20} /> : isInProgress ? <Loader2 size={20} /> : <Circle size={20} />}
         </button>
-        
-        <div 
-          className="flex-1 cursor-pointer" 
+
+        <div
+          className="flex-1 cursor-pointer"
           onClick={() => onEdit(task)}
         >
           <h3 className={`font-medium text-slate-900 ${isDone ? 'line-through text-slate-400' : ''}`}>
             {task.title}
           </h3>
-          
+
           {!compact && task.description && (
             <p className="mt-1 line-clamp-2 text-xs text-slate-500 whitespace-pre-line">
               {task.description}
@@ -65,7 +64,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit, onToggleStatus
             </span>
 
             {isInProgress && !isDone && (
-               <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-700">
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-700">
                 进行中
               </span>
             )}
@@ -76,6 +75,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit, onToggleStatus
                 完成于 {format(new Date(task.completedAt), 'MM月dd日 HH:mm')}
               </span>
             )}
+
+            {task.tags && task.tags.length > 0 && task.tags.map(tag => (
+              <span key={tag} className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500 border border-slate-200">
+                #{tag}
+              </span>
+            ))}
           </div>
         </div>
       </div>

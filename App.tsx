@@ -2,17 +2,20 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Layout, Calendar as CalendarIcon, Inbox,
   Grid2X2, Plus, Menu, Search, ChevronLeft, ChevronRight, Loader2, Sun,
-  List, Filter, ArrowUpDown, Trash2, Edit2, RefreshCw, AlertCircle, BarChart3
+  List, Filter, ArrowUpDown, Trash2, Edit2, RefreshCw, AlertCircle, BarChart3, Tag, X, Rocket
 } from 'lucide-react';
-import { Task, ViewMode, TaskStatus, Priority, PRIORITY_LABELS, STATUS_LABELS } from './types';
+import { Task, ViewMode, TaskStatus, Priority, PRIORITY_LABELS, STATUS_LABELS, Sprint } from './types';
 import { taskService } from './services/taskService';
 import { TaskModal } from './components/TaskModal';
 import { TaskCard } from './components/TaskCard';
 import { ConfirmModal } from './components/ConfirmModal';
 import { CalendarView } from './components/Calendar/CalendarView';
 import { SettingsView } from './components/SettingsView';
+import { SprintView } from './components/SprintView';
 import { DashboardView } from './components/DashboardView';
+import { TaskListView } from './components/TaskListView';
 import { holidayService } from './services/holidayService';
+import { sprintService } from './services/sprintService';
 import { Settings as SettingsIcon } from 'lucide-react';
 import {
   format, isSameDay, isSameWeek, isSameMonth,
@@ -44,6 +47,7 @@ const WEEK_DAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '
 function App() {
   // --- State ---
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [sprints, setSprints] = useState<Sprint[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('inbox');
 
   // Initialize sidebar based on window width (closed on mobile by default)
@@ -73,6 +77,8 @@ function App() {
   const [allTasksPage, setAllTasksPage] = useState(1);
   const [allTasksStatus, setAllTasksStatus] = useState<'ALL' | 'UNFINISHED' | TaskStatus>('ALL');
   const [allTasksPriority, setAllTasksPriority] = useState<'ALL' | Priority>('ALL');
+  const [allTasksTags, setAllTasksTags] = useState<string[]>([]);
+  const [allTasksSprintId, setAllTasksSprintId] = useState<string>('ALL');
   const [allTasksSort, setAllTasksSort] = useState<'created' | 'dueDate'>('created');
   const ITEMS_PER_PAGE = 10;
 
@@ -80,8 +86,12 @@ function App() {
   const fetchTasks = useCallback(async () => {
     try {
       setIsLoading(true);
-      const data = await taskService.getTasks();
-      setTasks(data);
+      const [tasksData, sprintsData] = await Promise.all([
+        taskService.getTasks(),
+        sprintService.getSprints()
+      ]);
+      setTasks(tasksData);
+      setSprints(sprintsData);
     } catch (error: any) {
       console.error("Failed to fetch tasks:", error);
       if (error.message === 'SUPABASE_NOT_CONFIGURED') {
@@ -176,6 +186,8 @@ function App() {
           priority: taskData.priority || Priority.Q2,
           dueDate: taskData.dueDate || null,
           completedAt: null,
+          tags: taskData.tags || [],
+          sprintId: taskData.sprintId || null,
         };
 
         // Optimistic Update
@@ -318,12 +330,12 @@ function App() {
           t.status !== TaskStatus.DONE &&
           t.dueDate && isPast(parseISO(t.dueDate))
         );
-      case 'matrix':
-        return filtered.filter(t => t.status !== TaskStatus.DONE);
+
       case 'all':
         // Return all filtered by search, internal table handles other filters
         return filtered;
       case 'settings':
+      case 'task-list':
         return filtered;
       default:
         return filtered;
@@ -333,30 +345,7 @@ function App() {
 
   // --- Render Helpers ---
 
-  const renderMatrixView = () => (
-    <div className="grid h-full grid-cols-1 gap-3 sm:gap-4 overflow-y-auto pb-4 md:pb-20 md:grid-cols-2 lg:h-[calc(100vh-8rem)]">
-      {[Priority.Q1, Priority.Q2, Priority.Q3, Priority.Q4].map((p) => (
-        <div key={p} className="flex flex-col gap-2 rounded-xl bg-slate-100 p-4 shadow-inner">
-          <h3 className="mb-2 flex items-center gap-2 font-semibold text-slate-700">
-            {p === Priority.Q1 && <span className="text-red-600">🔥 第一象限 (马上做)</span>}
-            {p === Priority.Q2 && <span className="text-blue-600">📅 第二象限 (规划做)</span>}
-            {p === Priority.Q3 && <span className="text-amber-600">🗣️ 第三象限 (授权做)</span>}
-            {p === Priority.Q4 && <span className="text-slate-500">🗑️ 第四象限 (消减做)</span>}
-          </h3>
-          <div className="flex flex-col gap-2 overflow-y-auto pr-1 custom-scrollbar max-h-[40vh] md:max-h-full">
-            {filteredTasks
-              .filter(t => t.priority === p)
-              .map(t => (
-                <TaskCard key={t.id} task={t} onEdit={openEditTaskModal} onToggleStatus={handleStatusToggle} compact />
-              ))}
-            {filteredTasks.filter(t => t.priority === p).length === 0 && (
-              <div className="py-8 text-center text-sm text-slate-400">暂无任务</div>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+
 
 
 
@@ -369,6 +358,26 @@ function App() {
         return false;
       }
       if (allTasksPriority !== 'ALL' && t.priority !== allTasksPriority) return false;
+
+      if (allTasksSprintId !== 'ALL') {
+        if (allTasksSprintId === 'UNASSIGNED') {
+          if (t.sprintId) return false;
+        } else {
+          if (t.sprintId !== allTasksSprintId) return false;
+        }
+      }
+
+      // Tags Filter (OR logic: task must have at least one of the selected tags)
+      // Actually, for "Filtering by tags", usually users expect to find tasks that match the criteria.
+      // If I select "Urgent", I want "Urgent".
+      // If I select "Frontend" and "Backend", I probably want both sets (OR).
+      // Let's use OR logic.
+      if (allTasksTags.length > 0) {
+        const taskTags = t.tags || [];
+        const hasMatch = allTasksTags.some(tag => taskTags.includes(tag));
+        if (!hasMatch) return false;
+      }
+
       return true;
     });
 
@@ -395,8 +404,10 @@ function App() {
       }
     };
 
+    const availableTags = Array.from(new Set(tasks.flatMap(t => t.tags || []))).sort();
+
     return (
-      <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden lg:h-[calc(100vh-9rem)]">
+      <div className="flex flex-col max-h-full h-auto bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-4 p-4 border-b border-slate-100 bg-slate-50">
           <div className="flex items-center gap-2">
@@ -419,6 +430,56 @@ function App() {
               {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v.split(' ')[0]}</option>)}
             </select>
           </div>
+
+          {/* Sprint Filter */}
+          <div className="flex items-center gap-2">
+            <Rocket size={16} className="text-slate-500" />
+            <select
+              value={allTasksSprintId}
+              onChange={(e) => { setAllTasksSprintId(e.target.value); setAllTasksPage(1); }}
+              className="text-sm border border-slate-300 rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-none max-w-[150px]"
+            >
+              <option value="ALL">所有冲刺</option>
+              <option value="UNASSIGNED">未分配</option>
+              {sprints.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Tags Filter */}
+          <div className="flex items-center gap-2">
+            <Tag size={16} className="text-slate-500" />
+            <select
+              value=""
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val && !allTasksTags.includes(val)) {
+                  setAllTasksTags([...allTasksTags, val]);
+                  setAllTasksPage(1);
+                }
+              }}
+              className="text-sm border border-slate-300 rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-none max-w-[100px]"
+            >
+              <option value="">标签</option>
+              {availableTags.filter(t => !allTasksTags.includes(t)).map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Selected Tags Chips */}
+          {allTasksTags.map(tag => (
+            <span key={tag} className="flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-1 text-xs text-indigo-700 font-medium">
+              {tag}
+              <button
+                onClick={() => setAllTasksTags(allTasksTags.filter(t => t !== tag))}
+                className="text-indigo-500 hover:text-indigo-800"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))}
           <div className="flex-1" />
           <div className="flex items-center gap-2">
             <ArrowUpDown size={16} className="text-slate-500" />
@@ -451,6 +512,22 @@ function App() {
                 <tr key={task.id} className="hover:bg-slate-50 transition-colors group">
                   <td className="px-6 py-4 font-medium text-slate-900 cursor-pointer" onClick={() => openEditTaskModal(task)}>
                     <div className="truncate max-w-xs sm:max-w-sm md:max-w-md" title={task.title}>{task.title}</div>
+                    {task.tags && task.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {task.tags.map(t => (
+                          <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">#{t}</span>
+                        ))}
+                      </div>
+                    )}
+                    {task.sprintId && (() => {
+                      const sprint = sprints.find(s => s.id === task.sprintId);
+                      return sprint ? (
+                        <div className="flex items-center gap-1 mt-1 text-[10px] text-indigo-600">
+                          <Rocket size={10} />
+                          {sprint.name}
+                        </div>
+                      ) : null;
+                    })()}
                   </td>
                   <td className="px-6 py-4">{getStatusBadge(task.status)}</td>
                   <td className="px-6 py-4">
@@ -523,7 +600,7 @@ function App() {
             </button>
           </div>
         </div>
-      </div>
+      </div >
     );
   };
 
@@ -532,7 +609,7 @@ function App() {
     const useFixedHeight = viewMode === 'inbox' || viewMode === 'today' || viewMode === 'tomorrow';
 
     return (
-      <div className={`grid grid-cols-1 gap-3 overflow-y-auto pb-4 md:pb-20 ${useFixedHeight ? 'auto-rows-fr' : ''} sm:grid-cols-2 lg:grid-cols-2 lg:h-[calc(100vh-8rem)] xl:grid-cols-3 2xl:grid-cols-4`}>
+      <div className={`h-full overflow-y-auto p-6 grid grid-cols-1 gap-4 ${useFixedHeight ? 'auto-rows-max' : ''} sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 content-start`}>
         {filteredTasks.map(task => (
           <div key={task.id} className={useFixedHeight ? 'h-full min-h-[120px] lg:max-h-[250px]' : ''}>
             <TaskCard
@@ -585,6 +662,15 @@ function App() {
             数据概览
           </button>
 
+          <button
+            onClick={() => handleNavClick('sprint')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'sprint' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+          >
+            <Rocket size={18} />
+            冲刺计划
+          </button>
+
           <div className="my-2 h-px bg-slate-100" />
 
           <button
@@ -593,34 +679,19 @@ function App() {
               }`}
           >
             <Inbox size={18} />
-            收集箱
+            草稿箱
             <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
               {tasks.filter(t => !t.dueDate && t.status !== TaskStatus.DONE).length}
             </span>
           </button>
 
           <button
-            onClick={() => handleNavClick('today')}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'today' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            onClick={() => handleNavClick('task-list')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'task-list' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
           >
-            <CalendarIcon size={18} />
-            今日任务
-            <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-              {tasks.filter(t => t.dueDate && isSameDay(parseISO(t.dueDate), new Date()) && t.status !== TaskStatus.DONE).length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => handleNavClick('tomorrow')}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'tomorrow' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-          >
-            <Sun size={18} />
-            明日任务
-            <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-              {tasks.filter(t => t.dueDate && isSameDay(parseISO(t.dueDate), addDays(new Date(), 1)) && t.status !== TaskStatus.DONE).length}
-            </span>
+            <List size={18} />
+            任务列表
           </button>
 
           <button
@@ -632,19 +703,7 @@ function App() {
             日历视图
           </button>
 
-          <div className="my-2 h-px bg-slate-100" />
 
-          <button
-            onClick={() => handleNavClick('overdue')}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'overdue' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-          >
-            <AlertCircle size={18} />
-            延期任务
-            <span className="ml-auto rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-600">
-              {tasks.filter(t => t.status !== TaskStatus.DONE && t.dueDate && isPast(parseISO(t.dueDate))).length}
-            </span>
-          </button>
 
           <button
             onClick={() => handleNavClick('all')}
@@ -655,14 +714,7 @@ function App() {
             所有任务
           </button>
 
-          <button
-            onClick={() => handleNavClick('matrix')}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${viewMode === 'matrix' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-          >
-            <Grid2X2 size={18} />
-            四象限视图
-          </button>
+
 
           <div className="my-2 h-px bg-slate-100" />
 
@@ -692,12 +744,12 @@ function App() {
             </button>
             <h2 className="text-xl font-bold text-slate-800">
               {viewMode === 'dashboard' && '数据概览'}
-              {viewMode === 'inbox' && '收集箱'}
+              {viewMode === 'sprint' && '冲刺计划'}
+              {viewMode === 'inbox' && '草稿箱'}
               {viewMode === 'today' && '今日任务'}
               {viewMode === 'tomorrow' && '明日任务'}
               {viewMode === 'calendar' && '日历视图'}
               {viewMode === 'all' && '所有任务'}
-              {viewMode === 'matrix' && '四象限视图'}
               {viewMode === 'overdue' && '延期任务'}
               {viewMode === 'settings' && '设置'}
             </h2>
@@ -724,36 +776,72 @@ function App() {
               <RefreshCw size={20} className={isLoading ? "animate-spin" : ""} />
             </button>
 
-            <button
-              onClick={openNewTaskModal}
-              className="flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-transform active:scale-95 hover:bg-indigo-700"
-            >
-              <Plus size={18} />
-              <span className="hidden sm:inline">新建任务</span>
-            </button>
+
           </div>
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden p-3 sm:p-4 md:p-6 lg:p-8">
+        <div className="flex-1 overflow-hidden">
           {viewMode === 'dashboard' ? (
-            <DashboardView tasks={tasks} />
+            <div className="h-full overflow-hidden p-6">
+              <DashboardView
+                tasks={tasks}
+                sprints={sprints}
+                onViewSprintTasks={(sprintId) => {
+                  setAllTasksSprintId(sprintId);
+                  setViewMode('all');
+                }}
+              />
+            </div>
+          ) : viewMode === 'sprint' ? (
+            <div className="h-full overflow-hidden p-6">
+              <SprintView
+                sprints={sprints}
+                tasks={tasks}
+                onSprintUpdate={fetchTasks}
+                onViewSprintTasks={(sprintId) => {
+                  setAllTasksSprintId(sprintId);
+                  setViewMode('all');
+                }}
+              />
+            </div>
           ) : viewMode === 'calendar' ? (
-            <CalendarView
-              tasks={filteredTasks}
-              onTaskClick={openEditTaskModal}
-              onToggleStatus={handleStatusToggle}
-              holidays={holidays}
-              showHolidays={showHolidays}
-            />
+            <div className="h-full overflow-hidden p-6">
+              <CalendarView
+                tasks={filteredTasks}
+                onTaskClick={openEditTaskModal}
+                onToggleStatus={handleStatusToggle}
+                holidays={holidays}
+                showHolidays={showHolidays}
+              />
+            </div>
           ) : viewMode === 'settings' ? (
-            <SettingsView
-              showHolidays={showHolidays}
-              onToggleHolidays={setShowHolidays}
-            />
-          ) : viewMode === 'matrix' ? renderMatrixView() :
-            (viewMode === 'all' || viewMode === 'overdue') ? renderAllTasksView() :
-              renderListView()}
+            <div className="h-full overflow-hidden p-6">
+              <SettingsView
+                showHolidays={showHolidays}
+                onToggleHolidays={setShowHolidays}
+              />
+            </div>
+          ) :
+            viewMode === 'task-list' ? (
+              <TaskListView
+                tasks={tasks}
+                sprints={sprints}
+                onEditTask={openEditTaskModal}
+                onToggleStatus={handleStatusToggle}
+                onDeleteTask={requestDeleteTask}
+                onCreateTask={(defaults) => {
+                  setEditingTask(defaults as Task); // Safe to cast as we handled Partial in TaskModal
+                  setIsModalOpen(true);
+                }}
+              />
+            ) :
+              (viewMode === 'all' || viewMode === 'overdue') ? (
+                <div className="h-full overflow-hidden p-6">
+                  {renderAllTasksView()}
+                </div>
+              ) :
+                renderListView()}
         </div>
       </main>
 
@@ -764,6 +852,7 @@ function App() {
         onSave={handleSaveTask}
         onDelete={requestDeleteTask}
         initialTask={editingTask}
+        sprints={sprints}
       // isDeleting is no longer passed to TaskModal in the same way, 
       // because TaskModal closes immediately or we handle it via the top ConfirmModal
       // but we can pass it if we want the button inside TaskModal to show loading,
