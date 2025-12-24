@@ -22,7 +22,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
     return (
         <div className="max-w-2xl mx-auto p-6">
-            <h2 className="text-2xl font-bold text-slate-800 mb-6">设置</h2>
+
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="p-6 border-b border-slate-100">

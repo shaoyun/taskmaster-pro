@@ -99,25 +99,15 @@ export const SprintView: React.FC<SprintViewProps> = ({ sprints, tasks = [], onS
 
     return (
         <div className="flex h-full flex-col gap-6 overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                        <Rocket className="text-indigo-600" />
-                        冲刺计划
-                    </h1>
-                    <p className="text-slate-500 text-sm">管理迭代周期，规划任务</p>
-                </div>
-                <div className="flex gap-3">
-                    {/* Config moved to Settings Page */}
-                    <button
-                        onClick={openCreateModal}
-                        className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-                    >
-                        <Plus size={18} />
-                        新建冲刺
-                    </button>
-                </div>
+            {/* Toolbar */}
+            <div className="flex items-center justify-end">
+                <button
+                    onClick={openCreateModal}
+                    className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 shadow-sm"
+                >
+                    <Plus size={18} />
+                    新建冲刺
+                </button>
             </div>
 
             {/* Sprints List */}
