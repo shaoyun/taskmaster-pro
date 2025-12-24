@@ -216,7 +216,6 @@ export const DraftsView: React.FC<DraftsViewProps> = ({
                             <Layout size={18} />
                         </button>
                         <h2 className="font-semibold text-slate-800 flex items-center gap-2">
-                            <span>草稿箱</span>
                             {activeFilterCount > 0 && (
                                 <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
                                     {activeFilterCount} 个筛选

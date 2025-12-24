@@ -333,7 +333,6 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                             <Layout size={18} />
                         </button>
                         <h2 className="font-semibold text-slate-800 flex items-center gap-2">
-                            <span>任务列表</span>
                             {selectedSprintId && (
                                 <span className="text-xs font-normal text-slate-500 bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-md">
                                     {sprints.find(s => s.id === selectedSprintId)?.name}
