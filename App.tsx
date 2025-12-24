@@ -14,6 +14,7 @@ import { SettingsView } from './components/SettingsView';
 import { SprintView } from './components/SprintView';
 import { DashboardView } from './components/DashboardView';
 import { TaskListView } from './components/TaskListView';
+import { DraftsView } from './components/DraftsView';
 import { holidayService } from './services/holidayService';
 import { sprintService } from './services/sprintService';
 import { Settings as SettingsIcon } from 'lucide-react';
@@ -746,6 +747,7 @@ function App() {
               {viewMode === 'dashboard' && '数据概览'}
               {viewMode === 'sprint' && '冲刺计划'}
               {viewMode === 'inbox' && '草稿箱'}
+              {viewMode === 'task-list' && '任务列表'}
               {viewMode === 'today' && '今日任务'}
               {viewMode === 'tomorrow' && '明日任务'}
               {viewMode === 'calendar' && '日历视图'}
@@ -840,6 +842,17 @@ function App() {
                 <div className="h-full overflow-hidden p-6">
                   {renderAllTasksView()}
                 </div>
+              ) : viewMode === 'inbox' ? (
+                <DraftsView
+                  tasks={filteredTasks}
+                  onEditTask={openEditTaskModal}
+                  onToggleStatus={handleStatusToggle}
+                  onDeleteTask={requestDeleteTask}
+                  onCreateTask={(defaults) => {
+                    setEditingTask(defaults as Task);
+                    setIsModalOpen(true);
+                  }}
+                />
               ) :
                 renderListView()}
         </div>
