@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Task, ViewMode, TaskStatus, Priority, PRIORITY_LABELS, STATUS_LABELS, Sprint } from './types';
 import { taskService } from './services/taskService';
+import { tagService, Tag as TagType } from './services/tagService';
 import { TaskModal } from './components/TaskModal';
 import { TaskCard } from './components/TaskCard';
 import { ConfirmModal } from './components/ConfirmModal';
@@ -49,6 +50,7 @@ function App() {
   // --- State ---
   const [tasks, setTasks] = useState<Task[]>([]);
   const [sprints, setSprints] = useState<Sprint[]>([]);
+  const [tags, setTags] = useState<TagType[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('inbox');
 
   // Initialize sidebar based on window width (closed on mobile by default)
@@ -87,12 +89,14 @@ function App() {
   const fetchTasks = useCallback(async () => {
     try {
       setIsLoading(true);
-      const [tasksData, sprintsData] = await Promise.all([
+      const [tasksData, sprintsData, tagsData] = await Promise.all([
         taskService.getTasks(),
-        sprintService.getSprints()
+        sprintService.getSprints(),
+        tagService.getTags()
       ]);
       setTasks(tasksData);
       setSprints(sprintsData);
+      setTags(tagsData);
     } catch (error: any) {
       console.error("Failed to fetch tasks:", error);
       if (error.message === 'SUPABASE_NOT_CONFIGURED') {
@@ -405,8 +409,6 @@ function App() {
       }
     };
 
-    const availableTags = Array.from(new Set(tasks.flatMap(t => t.tags || []))).sort();
-
     return (
       <div className="flex flex-col max-h-full h-auto bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {/* Toolbar */}
@@ -463,7 +465,7 @@ function App() {
               className="text-sm border border-slate-300 rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-none max-w-[100px]"
             >
               <option value="">标签</option>
-              {availableTags.filter(t => !allTasksTags.includes(t)).map(t => (
+              {tags.map(t => t.name).filter(t => !allTasksTags.includes(t)).map(t => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
@@ -866,7 +868,8 @@ function App() {
         onDelete={requestDeleteTask}
         initialTask={editingTask}
         sprints={sprints}
-      // isDeleting is no longer passed to TaskModal in the same way, 
+        availableTags={tags.map(t => t.name)}
+      // isDeleting is no longer passed to TaskModal in the same way,
       // because TaskModal closes immediately or we handle it via the top ConfirmModal
       // but we can pass it if we want the button inside TaskModal to show loading,
       // however, we are using a separate ConfirmModal now.

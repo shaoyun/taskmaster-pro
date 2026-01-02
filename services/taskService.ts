@@ -1,5 +1,6 @@
 import { getSupabase } from './supabaseClient';
 import { Task, TaskStatus, Priority } from '../types';
+import { tagService } from './tagService';
 
 const ensureSupabase = () => {
   const supabase = getSupabase();
@@ -53,10 +54,27 @@ export const taskService = {
       sprint_id: task.sprintId,
     });
     if (error) throw error;
+
+    // 维护标签表：增加新标签的使用次数
+    try {
+      await tagService.incrementTagUsage(task.tags || []);
+    } catch (tagError) {
+      console.error('Error updating tag usage:', tagError);
+      // 标签更新失败不影响任务创建
+    }
   },
 
   async updateTask(task: Task): Promise<void> {
     const supabase = ensureSupabase();
+
+    // 获取任务的旧标签以便更新标签使用统计
+    const { data: oldTask } = await supabase
+      .from('tasks')
+      .select('tags')
+      .eq('id', task.id)
+      .single();
+
+    const oldTags = oldTask?.tags || [];
 
     // Determine completed_at based on status
     let completedAt: string | null;
@@ -82,11 +100,37 @@ export const taskService = {
       })
       .eq('id', task.id);
     if (error) throw error;
+
+    // 维护标签表：更新标签使用次数
+    try {
+      await tagService.updateTagUsage(oldTags, task.tags || []);
+    } catch (tagError) {
+      console.error('Error updating tag usage:', tagError);
+      // 标签更新失败不影响任务更新
+    }
   },
 
   async deleteTask(id: string): Promise<void> {
     const supabase = ensureSupabase();
+
+    // 获取任务的标签以便更新标签使用统计
+    const { data: task } = await supabase
+      .from('tasks')
+      .select('tags')
+      .eq('id', id)
+      .single();
+
+    const tags = task?.tags || [];
+
     const { error } = await supabase.from('tasks').delete().eq('id', id);
     if (error) throw error;
+
+    // 维护标签表：减少已删除任务的标签使用次数
+    try {
+      await tagService.decrementTagUsage(tags);
+    } catch (tagError) {
+      console.error('Error updating tag usage:', tagError);
+      // 标签更新失败不影响任务删除
+    }
   }
 };

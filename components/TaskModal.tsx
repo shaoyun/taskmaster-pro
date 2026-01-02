@@ -58,9 +58,10 @@ interface TaskModalProps {
 
   initialTask?: Partial<Task> | null;
   sprints?: Sprint[];
+  availableTags?: string[];
 }
 
-export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, onDelete, initialTask, sprints = [] }) => {
+export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, onDelete, initialTask, sprints = [], availableTags = [] }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<TaskStatus>(TaskStatus.TODO);
@@ -68,6 +69,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, o
   const [priority, setPriority] = useState<Priority>(Priority.Q2);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const [sprintId, setSprintId] = useState<string>('');
 
   // dueDate stores the string for the input: "yyyy-MM-ddThh:mm" (Local Time)
@@ -127,6 +130,65 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, o
     if (subtasks.length > 0) {
       const formattedSubtasks = subtasks.map(st => `- [ ] ${st}`).join('\n');
       setDescription(prev => prev ? `${prev}\n\nAI 建议拆解:\n${formattedSubtasks}` : `AI 建议拆解:\n${formattedSubtasks}`);
+    }
+  };
+
+  // Tag autocomplete logic
+  const filteredTagSuggestions = React.useMemo(() => {
+    // 获取未添加的标签
+    const unusedTags = availableTags.filter(tag => !tags.includes(tag));
+
+    // 如果没有输入，显示所有未添加的标签（按使用频率排序）
+    if (!tagInput.trim()) {
+      return unusedTags.slice(0, 10); // 限制显示10个
+    }
+
+    // 如果有输入，进行模糊匹配搜索
+    const input = tagInput.toLowerCase();
+    return unusedTags
+      .filter(tag => tag.toLowerCase().includes(input))
+      .slice(0, 10); // 限制显示10个建议
+  }, [tagInput, availableTags, tags]);
+
+  const handleTagInputChange = (value: string) => {
+    setTagInput(value);
+    setShowTagSuggestions(true); // 输入时始终显示建议
+    setSelectedSuggestionIndex(0);
+  };
+
+  const addTag = (tag: string) => {
+    const trimmedTag = tag.trim();
+    if (trimmedTag && !tags.includes(trimmedTag)) {
+      setTags([...tags, trimmedTag]);
+      setTagInput('');
+      setShowTagSuggestions(false);
+      setSelectedSuggestionIndex(0);
+    }
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+
+      if (showTagSuggestions && filteredTagSuggestions.length > 0) {
+        // 选择建议的标签
+        addTag(filteredTagSuggestions[selectedSuggestionIndex]);
+      } else if (tagInput.trim()) {
+        // 添加新标签
+        addTag(tagInput);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (filteredTagSuggestions.length > 0) {
+        setSelectedSuggestionIndex(prev =>
+          prev < filteredTagSuggestions.length - 1 ? prev + 1 : prev
+        );
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedSuggestionIndex(prev => prev > 0 ? prev - 1 : 0);
+    } else if (e.key === 'Escape') {
+      setShowTagSuggestions(false);
     }
   };
 
@@ -227,7 +289,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, o
 
           </div>
 
-          <div>
+          <div className="relative">
             <label className="mb-1 block text-sm font-medium text-slate-700">标签</label>
             <div className="flex flex-wrap gap-2 mb-2">
               {tags.map(tag => (
@@ -241,19 +303,64 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, o
             <input
               type="text"
               value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  if (tagInput.trim() && !tags.includes(tagInput.trim())) {
-                    setTags([...tags, tagInput.trim()]);
-                    setTagInput('');
-                  }
-                }
-              }}
-              placeholder="输入标签按回车添加..."
+              onChange={(e) => handleTagInputChange(e.target.value)}
+              onKeyDown={handleTagKeyDown}
+              onFocus={() => setShowTagSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
+              placeholder="点击选择或输入新标签..."
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              autoComplete="off"
             />
+
+            {/* 标签建议下拉菜单 */}
+            {showTagSuggestions && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                {filteredTagSuggestions.length > 0 ? (
+                  <>
+                    {/* 如果有输入但没有完全匹配，显示"创建新标签"选项 */}
+                    {tagInput.trim() && !availableTags.includes(tagInput.trim()) && (
+                      <button
+                        type="button"
+                        onClick={() => addTag(tagInput)}
+                        className="w-full text-left px-3 py-2 text-sm border-b border-slate-100 hover:bg-green-50 flex items-center gap-2 text-green-700"
+                      >
+                        <Plus size={14} />
+                        创建新标签 "{tagInput.trim()}"
+                      </button>
+                    )}
+                    {/* 现有标签列表 */}
+                    {filteredTagSuggestions.map((tag, index) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => addTag(tag)}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 flex items-center gap-2 ${
+                          index === selectedSuggestionIndex ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'
+                        }`}
+                      >
+                        <Tag size={14} className="text-slate-400" />
+                        {tag}
+                      </button>
+                    ))}
+                  </>
+                ) : (
+                  <div className="px-3 py-4 text-sm text-slate-500 text-center">
+                    {tagInput.trim() ? (
+                      <button
+                        type="button"
+                        onClick={() => addTag(tagInput)}
+                        className="w-full text-left px-3 py-2 hover:bg-green-50 flex items-center justify-center gap-2 text-green-700"
+                      >
+                        <Plus size={14} />
+                        创建新标签 "{tagInput.trim()}"
+                      </button>
+                    ) : (
+                      <span className="text-slate-400">暂无可用标签，输入文字创建新标签</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
